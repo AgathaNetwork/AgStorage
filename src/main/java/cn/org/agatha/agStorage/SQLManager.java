@@ -25,11 +25,21 @@ public class SQLManager {
     }
 
     /**
-     * 启动数据库连接
+     * 启动数据库连接并确保 storages 表存在
      */
     public void startConnection() throws SQLException {
         String url = "jdbc:mysql://" + ip + ":" + port + "/" + databaseName;
         connection = DriverManager.getConnection(url, username, password);
+
+        try (PreparedStatement stmt = connection.prepareStatement(
+                "CREATE TABLE IF NOT EXISTS storages (" +
+                        "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                        "name VARCHAR(255) NOT NULL UNIQUE, " +
+                        "data TEXT, " +
+                        "time INT" +
+                        ")")) {
+            stmt.execute();
+        }
     }
 
     /**
