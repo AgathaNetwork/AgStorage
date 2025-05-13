@@ -1,16 +1,31 @@
 package cn.org.agatha.agStorage;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.block.*;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.inventory.DoubleChestInventory;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
+import java.sql.SQLException;
+import java.util.*;
 
 
 public final class AgStorage extends JavaPlugin {
+    private String dbIp;
+    private int dbPort;
+    private String dbUser;
+    private String dbPassword;
+    private String dbName;
     private List<StorageRegion> storageRegions = new ArrayList<>();
     ThreadSafeSQLManager dbManager = new ThreadSafeSQLManager();
     @Override
@@ -75,21 +90,128 @@ public final class AgStorage extends JavaPlugin {
         }
 
         getLogger().info("已成功加载 " + storageRegions.size() + " 个存储区域。");
-        String dbIp = config.getString("sql.ip", "127.0.0.1");
-        int dbPort = config.getInt("sql.port", 3306);
-        String dbUser = config.getString("sql.username", "root");
-        String dbPassword = config.getString("sql.password", "password");
-        String dbName = config.getString("sql.database", "openid");
+        dbIp = config.getString("sql.ip", "127.0.0.1");
+        dbPort = config.getInt("sql.port", 3306);
+        dbUser = config.getString("sql.username", "root");
+        dbPassword = config.getString("sql.password", "password");
+        dbName = config.getString("sql.database", "openid");
         dbManager.initAndStart(dbIp, dbPort, dbUser, dbPassword, dbName);
     }
+    private Set<Location> processedLocations = new HashSet<>();
+    private Map<String, Integer> itemSummary = new HashMap<>();
     @Override
-    public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("updatestorage")) {
             if (args.length == 1) {
                 String name = args[0];
                 // 执行更新存储区域的逻辑
                 sender.sendMessage("正在更新存储区域: " + name);
-                //
+                // 获取存储区域相应信息
+                StorageRegion region = storageRegions.stream()
+                        .filter(r -> r.getNickname().equals(name))
+                        .findFirst()
+                        .orElse(null);
+                if (region == null) {
+                    sender.sendMessage("存储区域 " + name + " 不存在。");
+                    return true;
+                }
+                try {
+                    if (!dbManager.isConnectionOpen()) {
+                        dbManager.initAndStart(dbIp, dbPort, dbUser, dbPassword, dbName);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+                int x1 = region.getX1();
+                int y1 = region.getY1();
+                int z1 = region.getZ1();
+                int x2 = region.getX2();
+                int y2 = region.getY2();
+                int z2 = region.getZ2();
+                String world = region.getWorld();
+                World worldObj = Bukkit.getWorld(world);
+
+                processedLocations.clear();
+                itemSummary.clear();
+
+                if (worldObj == null){
+                    sender.sendMessage("世界 " + world + " 不存在。");
+                }
+                else{
+
+                    //确保数值上1小于2
+                    if (x1 > x2) {
+                        int temp = x1;
+                        x1 = x2;
+                        x2 = temp;
+                    }
+                    if (y1 > y2) {
+                        int temp = y1;
+                        y1 = y2;
+                        y2 = temp;
+                    }
+                    if (z1 > z2) {
+                        int temp = z1;
+                        z1 = z2;
+                        z2 = temp;
+                    }
+                    int totalContainers = 0;
+
+                    for (int x = x1; x <= x2; x++) {
+                        for (int y = y1; y <= y2; y++) {
+                            for (int z = z1; z <= z2; z++) {
+                                Block block = worldObj.getBlockAt(x, y, z);
+                                BlockState state = block.getState();
+                                if( state instanceof Container){
+
+                                    Location loc = state.getLocation();
+                                    if (processedLocations.contains(loc)) continue;
+                                    int Scanned = 0;
+                                    Inventory Inv = null;
+                                    // 进行容器坐标标记
+                                    if ( state instanceof ShulkerBox){
+                                        Scanned = 1;
+                                        processedLocations.add(loc);
+                                        Inv = ((ShulkerBox) state).getInventory();
+                                    }
+                                    else if ( state instanceof Chest)
+                                    {
+                                        Scanned = 1;
+                                        Chest chest = (Chest) state;
+                                        Inv = chest.getInventory();
+                                        //大箱子处理逻辑
+                                        if (chest.getInventory() instanceof DoubleChestInventory) {
+                                            DoubleChest doubleChest = (DoubleChest) ((DoubleChestInventory) chest.getInventory()).getHolder();
+                                            if (doubleChest != null) {
+                                                Location leftLoc = doubleChest.getLeftSide().getInventory().getLocation();
+                                                Location rightLoc = doubleChest.getRightSide().getInventory().getLocation();
+                                                if (!processedLocations.contains(leftLoc)) {
+                                                    processedLocations.add(leftLoc);
+                                                }
+                                                if (!processedLocations.contains(rightLoc)) {
+                                                    processedLocations.add(rightLoc);
+                                                }
+                                            }
+                                        }
+                                        else processedLocations.add(loc);
+                                        //小箱子处理逻辑
+                                    }
+                                    if (Scanned == 1){
+                                        totalContainers ++;
+                                        summarizeInventory(Inv);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    sender.sendMessage("已扫描 " + totalContainers + " 个容器");
+                    sender.sendMessage("§a物品统计结果:");
+                    for (Map.Entry<String, Integer> entry : itemSummary.entrySet()) {
+                        sender.sendMessage(" - " + entry.getKey() + ": " + entry.getValue());
+                    }
+
+                }
+
                 Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
                     try {
                         dbManager.updateStorageAsync(name, "1", 1);
@@ -106,6 +228,26 @@ public final class AgStorage extends JavaPlugin {
         }
         return false;
     }
+    private void summarizeInventory(Inventory inventory) {
+        for (ItemStack item : inventory.getContents()) {
+            if (item != null && item.getType() != Material.AIR) {
+                String itemId = item.getType().name();
+                int amount = item.getAmount();
+
+                // 更新统计表
+                itemSummary.put(itemId, itemSummary.getOrDefault(itemId, 0) + amount);
+
+                // 如果是 ShulkerBox，则递归扫描里面的内容
+                if (item.getItemMeta() instanceof BlockStateMeta) {
+                    BlockStateMeta blockStateMeta = (BlockStateMeta) item.getItemMeta();
+                    if (blockStateMeta.getBlockState() instanceof ShulkerBox shulkerBox) {
+                        summarizeInventory(shulkerBox.getInventory());
+                    }
+                }
+            }
+        }
+    }
+
 
 
 }
