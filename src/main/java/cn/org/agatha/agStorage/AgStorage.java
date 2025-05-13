@@ -89,6 +89,7 @@ public final class AgStorage extends JavaPlugin {
                 String name = args[0];
                 // 执行更新存储区域的逻辑
                 sender.sendMessage("正在更新存储区域: " + name);
+                //
                 Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
                     try {
                         dbManager.updateStorageAsync(name, "1", 1);
