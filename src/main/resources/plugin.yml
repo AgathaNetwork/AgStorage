@@ -1,0 +1,4 @@
+name: AgStorage
+version: '1.0'
+main: cn.org.agatha.agStorage.AgStorage
+api-version: '1.21'
