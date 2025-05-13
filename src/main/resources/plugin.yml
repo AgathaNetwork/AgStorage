@@ -2,3 +2,7 @@ name: AgStorage
 version: '1.0'
 main: cn.org.agatha.agStorage.AgStorage
 api-version: '1.21'
+commands:
+  updatestorage:
+    description: 更新指定名称的存储区域
+    usage: /updatestorage <name>

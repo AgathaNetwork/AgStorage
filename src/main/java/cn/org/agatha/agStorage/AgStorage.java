@@ -1,5 +1,6 @@
 package cn.org.agatha.agStorage;
 
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -8,10 +9,10 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.bukkit.configuration.file.YamlConfiguration.loadConfiguration;
 
 public final class AgStorage extends JavaPlugin {
     private List<StorageRegion> storageRegions = new ArrayList<>();
+    ThreadSafeSQLManager dbManager = new ThreadSafeSQLManager();
     @Override
     public void onEnable() {
         File configFile = new File(getDataFolder(), "config.yml");
@@ -29,6 +30,7 @@ public final class AgStorage extends JavaPlugin {
     @Override
     public void onDisable() {
         // Plugin shutdown logic
+        dbManager.shutdown();
     }
     public void loadConfiguration() {
         storageRegions.clear(); // 清空旧数据
@@ -66,13 +68,43 @@ public final class AgStorage extends JavaPlugin {
                 int z2 = storageSection.getInt("z2");
                 String world = storageSection.getString("world", "");
 
-                storageRegions.add(new StorageRegion(x1, y1, z1, x2, y2, z2, world));
+                storageRegions.add(new StorageRegion(key, x1, y1, z1, x2, y2, z2, world));
             } else {
-                getLogger().warning("storages 下的键 '" + key + "' 不是一个有效的配置节。");
+                getLogger().warning("storages 下的 '" + key + "' 不是一个有效的配置节。");
             }
         }
 
         getLogger().info("已成功加载 " + storageRegions.size() + " 个存储区域。");
+        String dbIp = config.getString("sql.ip", "127.0.0.1");
+        int dbPort = config.getInt("sql.port", 3306);
+        String dbUser = config.getString("sql.username", "root");
+        String dbPassword = config.getString("sql.password", "password");
+        String dbName = config.getString("sql.database", "openid");
+        dbManager.initAndStart(dbIp, dbPort, dbUser, dbPassword, dbName);
     }
+    @Override
+    public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
+        if (command.getName().equalsIgnoreCase("updatestorage")) {
+            if (args.length == 1) {
+                String name = args[0];
+                // 执行更新存储区域的逻辑
+                sender.sendMessage("正在更新存储区域: " + name);
+                Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                    try {
+                        dbManager.updateStorageAsync(name, "1", 1);
+                    }
+                    catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+                // 调用具体操作方法，例如 updateStorageRegion(name)
+            } else {
+                sender.sendMessage("用法: /updatestorage <name>");
+            }
+            return true;
+        }
+        return false;
+    }
+
 
 }

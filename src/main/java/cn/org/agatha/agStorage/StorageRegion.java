@@ -7,9 +7,10 @@ public class StorageRegion {
     private final int x2;
     private final int y2;
     private final int z2;
+    private final String nickname;
     private final String world;
 
-    public StorageRegion(int x1, int y1, int z1, int x2, int y2, int z2, String world) {
+    public StorageRegion(String nickname, int x1, int y1, int z1, int x2, int y2, int z2, String world) {
         this.x1 = x1;
         this.y1 = y1;
         this.z1 = z1;
@@ -17,6 +18,7 @@ public class StorageRegion {
         this.y2 = y2;
         this.z2 = z2;
         this.world = world;
+        this.nickname = nickname;
     }
 
     public int getX1() {
@@ -45,5 +47,8 @@ public class StorageRegion {
 
     public String getWorld() {
         return world;
+    }
+    public String getNickname() {
+        return nickname;
     }
 }
