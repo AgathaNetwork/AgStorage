@@ -1,5 +1,5 @@
 package cn.org.agatha.agStorage;
-
+import java.time.Instant;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -14,7 +14,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.plugin.java.JavaPlugin;
-
+import com.google.gson.Gson;
 import java.io.File;
 import java.sql.SQLException;
 import java.util.*;
@@ -206,15 +206,19 @@ public final class AgStorage extends JavaPlugin {
                     }
                     sender.sendMessage("已扫描 " + totalContainers + " 个容器");
                     sender.sendMessage("§a物品统计结果:");
+
                     for (Map.Entry<String, Integer> entry : itemSummary.entrySet()) {
                         sender.sendMessage(" - " + entry.getKey() + ": " + entry.getValue());
                     }
 
                 }
-
+                Gson gson = new Gson();
+                String jsonItemSummary = gson.toJson(itemSummary);
+                long timestamp = Instant.now().getEpochSecond(); // 秒级时间戳
+                String strTimestamp = String.valueOf(timestamp);
                 Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
                     try {
-                        dbManager.updateStorageAsync(name, "1", 1);
+                        dbManager.updateStorageAsync(name, jsonItemSummary, Integer.parseInt(strTimestamp));
                     }
                     catch (Exception e) {
                         e.printStackTrace();
@@ -231,7 +235,7 @@ public final class AgStorage extends JavaPlugin {
     private void summarizeInventory(Inventory inventory) {
         for (ItemStack item : inventory.getContents()) {
             if (item != null && item.getType() != Material.AIR) {
-                String itemId = item.getType().name();
+                String itemId = item.getType().getKey().toString();
                 int amount = item.getAmount();
 
                 // 更新统计表
