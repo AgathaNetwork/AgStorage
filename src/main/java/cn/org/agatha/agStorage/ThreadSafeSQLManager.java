@@ -41,6 +41,10 @@ public class ThreadSafeSQLManager {
     public void updateStorageAsync(String name, String data, int time) {
         taskQueue.offer(() -> {
             try {
+                // 检查连接是否仍然有效
+                if (!sqlManager.isConnectionOpen()) {
+                    sqlManager.startConnection(); // 如果连接已关闭，重新建立连接
+                }
                 sqlManager.updateStorage(name, data, time);
             } catch (SQLException e) {
                 System.err.println("Update storage failed: " + e.getMessage());
