@@ -1,4 +1,5 @@
 package cn.org.agatha.agStorage;
+
 import java.sql.SQLException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -13,23 +14,10 @@ public class ThreadSafeSQLManager {
         sqlManager.updateDatabaseInfo(ip, port, user, password, dbName);
 
         workerThread = new Thread(() -> {
-            try {
-                sqlManager.startConnection();
-
-                while (running || !taskQueue.isEmpty()) {
-                    Runnable task = taskQueue.poll();
-                    if (task != null) {
-                        task.run();
-                    }
-                }
-
-            } catch (SQLException e) {
-                e.printStackTrace();
-            } finally {
-                try {
-                    sqlManager.closeConnection();
-                } catch (SQLException ex) {
-                    ex.printStackTrace();
+            while (running || !taskQueue.isEmpty()) {
+                Runnable task = taskQueue.poll();
+                if (task != null) {
+                    task.run();
                 }
             }
         });
@@ -41,13 +29,16 @@ public class ThreadSafeSQLManager {
     public void updateStorageAsync(String name, String data, int time) {
         taskQueue.offer(() -> {
             try {
-                // 检查连接是否仍然有效
-                if (!sqlManager.isConnectionOpen()) {
-                    sqlManager.startConnection(); // 如果连接已关闭，重新建立连接
-                }
+                sqlManager.startConnection(); // 每次操作前建立连接
                 sqlManager.updateStorage(name, data, time);
             } catch (SQLException e) {
                 System.err.println("Update storage failed: " + e.getMessage());
+            } finally {
+                try {
+                    sqlManager.closeConnection(); // 操作完成后关闭连接
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
             }
         });
     }

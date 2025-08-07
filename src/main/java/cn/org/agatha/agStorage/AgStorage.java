@@ -1,4 +1,5 @@
 package cn.org.agatha.agStorage;
+
 import java.time.Instant;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -19,7 +20,6 @@ import java.io.File;
 import java.sql.SQLException;
 import java.util.*;
 
-
 public final class AgStorage extends JavaPlugin {
     private String dbIp;
     private int dbPort;
@@ -28,6 +28,7 @@ public final class AgStorage extends JavaPlugin {
     private String dbName;
     private List<StorageRegion> storageRegions = new ArrayList<>();
     ThreadSafeSQLManager dbManager = new ThreadSafeSQLManager();
+
     @Override
     public void onEnable() {
         File configFile = new File(getDataFolder(), "config.yml");
@@ -47,6 +48,7 @@ public final class AgStorage extends JavaPlugin {
         // Plugin shutdown logic
         dbManager.shutdown();
     }
+
     public void loadConfiguration() {
         storageRegions.clear(); // 清空旧数据
         FileConfiguration config = getConfig();
@@ -97,8 +99,10 @@ public final class AgStorage extends JavaPlugin {
         dbName = config.getString("sql.database", "openid");
         dbManager.initAndStart(dbIp, dbPort, dbUser, dbPassword, dbName);
     }
+
     private Set<Location> processedLocations = new HashSet<>();
     private Map<String, Integer> itemSummary = new HashMap<>();
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("updatestorage")) {
@@ -115,13 +119,7 @@ public final class AgStorage extends JavaPlugin {
                     sender.sendMessage("存储区域 " + name + " 不存在。");
                     return true;
                 }
-                try {
-                    if (!dbManager.isConnectionOpen()) {
-                        dbManager.initAndStart(dbIp, dbPort, dbUser, dbPassword, dbName);
-                    }
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
+
                 int x1 = region.getX1();
                 int y1 = region.getY1();
                 int z1 = region.getZ1();
@@ -196,6 +194,12 @@ public final class AgStorage extends JavaPlugin {
                                         else processedLocations.add(loc);
                                         //小箱子处理逻辑
                                     }
+                                    else if ( state instanceof Barrel){
+                                        Scanned = 1;
+                                        Barrel barrel = (Barrel) state;
+                                        Inv = barrel.getInventory();
+                                        processedLocations.add(loc);
+                                    }
                                     if (Scanned == 1){
                                         totalContainers ++;
                                         summarizeInventory(Inv);
@@ -232,6 +236,7 @@ public final class AgStorage extends JavaPlugin {
         }
         return false;
     }
+
     private void summarizeInventory(Inventory inventory) {
         for (ItemStack item : inventory.getContents()) {
             if (item != null && item.getType() != Material.AIR) {
@@ -251,7 +256,4 @@ public final class AgStorage extends JavaPlugin {
             }
         }
     }
-
-
-
 }
